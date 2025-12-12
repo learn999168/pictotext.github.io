@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Covert image to text (free)</title>
+    <link rel="icon" href="pic1230002.jpg">
+    <!-- Load Tailwind CSS CDN first -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for a cleaner UI */
+        body {
+            background-color: #f3f4f6; /* Light gray background */
+            background-image: url(pink_39549760.jpg);
+            backdrop-filter: blur(9px);
+        }
+        .container {
+            min-height: 100vh;
+        }
+        /* Custom focus ring for accessibility and style */
+        .file-input-label:focus-within {
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.5); /* Primary color focus ring */
+            border-color: #4f46e5;
+        }
+    </style>
+</head>
+<body class="font-sans">
+
+    <!-- Tailwind Config must be defined after the CDN is loaded, so we move it lower in the body. -->
+    <script>
+        // FIX: Moved configuration here to ensure the 'tailwind' object is defined when accessed.
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary': '#4f46e5',
+                        'secondary': '#8b5cf6',
+                        'accent': '#a78bfa',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <div class="container mx-auto p-4 md:p-8 flex flex-col items-center">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-extrabold text-gray-900 mb-2">Image to Text (Super Star)</h1>
+            <p class="text-xl text-gray-600">Extract text from any image, document scan, or photo.</p>
+        </header>
+
+        <main class="w-full max-w-4xl bg-white shadow-xl rounded-2xl p-6 md:p-10">
+
+            <!-- 1. Input Section -->
+            <section class="mb-8 p-6 border-2 border-dashed border-accent/50 rounded-xl bg-accent/5">
+                <label for="image-upload" class="file-input-label flex flex-col items-center justify-center p-4 cursor-pointer transition duration-300 hover:bg-accent/10 rounded-lg">
+                    <svg class="w-10 h-10 text-primary mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    <span class="text-lg font-semibold text-gray-700">Click to upload an Image</span>
+                    <span class="text-sm text-gray-500">JPG, PNG, or GIF up to 5MB</span>
+                    <input type="file" id="image-upload" accept="image/png, image/jpeg, image/gif" class="hidden" onchange="handleImageUpload(event)">
+                </label>
+            </section>
+
+            <!-- 2. Preview and Controls Section -->
+            <section class="flex flex-col lg:flex-row gap-8 mb-8">
+                <div class="lg:w-1/2">
+                    <h2 class="text-2xl font-semibold text-gray-800 mb-4">Image Preview មើលរូបសិន</h2>
+                    <div id="image-preview-container" class="bg-gray-100 p-4 border border-gray-300 rounded-lg flex justify-center items-center h-64 overflow-hidden">
+                        <p id="preview-placeholder" class="text-gray-500">No image selected មិនរូបបានជ្រើសរើសទេ</p>
+                        <img id="uploaded-image" src="#" alt="Uploaded Image Preview" class="max-h-full max-w-full object-contain rounded-lg hidden">
+                    </div>
+                </div>
+
+                <div class="lg:w-1/2 flex flex-col justify-end">
+                    <button id="convert-button" onclick="performOCR()" disabled class="w-full text-white bg-primary hover:bg-secondary focus:ring-4 focus:ring-accent/50 font-medium rounded-xl text-lg px-5 py-3 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg">
+                        <span id="button-text">Convert Picture to Text</span>
+                        <div id="spinner" class="hidden animate-spin rounded-full h-6 w-6 border-b-2 border-white mx-auto"></div>
+                    </button>
+                    <p id="error-message" class="text-sm text-red-600 mt-2 text-center hidden">An error occurred.</p>
+                </div>
+            </section>
+
+            <!-- 3. Output Section -->
+            <section>
+                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Extracted Text</h2>
+                <textarea id="output-text" rows="10" class="w-full p-4 border border-gray-300 rounded-lg bg-gray-50 text-gray-800 focus:ring-primary focus:border-primary transition duration-150" placeholder="Extracted text will appear here..." readonly></textarea>
+                <button id="copy-button" onclick="copyToClipboard()" class="mt-3 text-sm text-primary hover:text-secondary font-medium transition duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center" disabled>
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-2m-2-4l-4 4m0 0l-4-4m4 4V8"></path></svg>
+                    Copy Text / ចម្លងអក្សរ
+                </button>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        // Global state for the base64 image data and MIME type
+        let base64ImageData = null;
+        let imageMimeType = null;
+
+        // API Configuration (required by the environment)
+        // NOTE: In this live environment, the API key is automatically supplied when this is an empty string.
+        const apiKey = "AIzaSyC91sXxfsk2wM4hjtF-BQjNfBiOg_8QU9A";
+        const apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent";
+
+        // Environment variables setup (MANDATORY for Canvas environment)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        /**
+         * Converts a File object to a base64 string and updates the UI preview.
+         * @param {Event} event - The file input change event.
+         */
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            const previewImg = document.getElementById('uploaded-image');
+            const placeholder = document.getElementById('preview-placeholder');
+            const convertButton = document.getElementById('convert-button');
+            const outputTextarea = document.getElementById('output-text');
+            const copyButton = document.getElementById('copy-button');
+
+            // Reset previous state
+            base64ImageData = null;
+            imageMimeType = null;
+            outputTextarea.value = '';
+            previewImg.classList.add('hidden');
+            placeholder.classList.remove('hidden');
+            convertButton.disabled = true;
+            copyButton.disabled = true;
+            document.getElementById('error-message').classList.add('hidden');
+
+            if (!file) return;
+
+            if (file.size > 5 * 1024 * 1024) { // Check file size (5MB limit)
+                alertUser("File is too large! Maximum size is 5MB.", "error");
+                return;
+            }
+
+            imageMimeType = file.type;
+
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                // Get the raw base64 data (remove the data URI prefix)
+                const base64String = e.target.result;
+                base64ImageData = base64String.split(',')[1];
+
+                // Update preview
+                previewImg.src = base64String;
+                previewImg.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+                convertButton.disabled = false;
+            };
+
+            reader.onerror = (error) => {
+                console.error("Error reading file:", error);
+                alertUser("Could not read the file. Please try a different image.", "error");
+            };
+
+            reader.readAsDataURL(file);
+        }
+
+        /**
+         * Displays a message to the user instead of using alert().
+         * For this simple app, we'll use the error message slot.
+         * @param {string} message - The message to display.
+         * @param {string} type - 'error' or 'info'.
+         */
+        function alertUser(message, type = 'info') {
+            const errorElement = document.getElementById('error-message');
+            errorElement.textContent = message;
+            errorElement.classList.remove('hidden');
+            if (type === 'error') {
+                errorElement.classList.add('text-red-600');
+                errorElement.classList.remove('text-blue-600');
+            } else {
+                errorElement.classList.add('text-blue-600');
+                errorElement.classList.remove('text-red-600');
+            }
+        }
+
+        /**
+         * Main function to perform the OCR using the Gemini API.
+         */
+        async function performOCR() {
+            if (!base64ImageData || !imageMimeType) {
+                alertUser("Please upload an image first ដាក់រូបចូលសិន.", "error");
+                return;
+            }
+
+            const convertButton = document.getElementById('convert-button');
+            const buttonText = document.getElementById('button-text');
+            const spinner = document.getElementById('spinner');
+            const outputTextarea = document.getElementById('output-text');
+            const copyButton = document.getElementById('copy-button');
+
+            // Reset UI state
+            outputTextarea.value = '';
+            copyButton.disabled = true;
+            document.getElementById('error-message').classList.add('hidden');
+            
+            // Set loading state
+            convertButton.disabled = true;
+            buttonText.classList.add('hidden');
+            spinner.classList.remove('hidden');
+
+            const userPrompt = "You are a highly accurate Optical Character Recognition (OCR) system. Extract all text present in this image. Do not include any commentary or explanation. Just output the raw extracted text.";
+
+            const payload = {
+                contents: [
+                    {
+                        role: "user",
+                        parts: [
+                            { text: userPrompt },
+                            {
+                                inlineData: {
+                                    mimeType: imageMimeType,
+                                    data: base64ImageData
+                                }
+                            }
+                        ]
+                    }
+                ],
+            };
+
+            // Implementation of exponential backoff for API calls
+            const maxRetries = 3;
+            let attempt = 0;
+            let success = false;
+            let resultText = "The API service is currently unreachable."; // Updated base error message
+
+            while (attempt < maxRetries && !success) {
+                try {
+                    const response = await fetch(`${apiUrl}?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const status = response.status;
+                        let errorMessage = `HTTP error! Status: ${status}.`;
+
+                        // Check for common authentication-related status codes
+                        if (status === 400 || status === 401 || status === 403) {
+                            errorMessage = `Request Failed: Authentication/Permission Error (Status ${status}). Please check your API key configuration.`;
+                        }
+                        
+                        // Throw the error to be caught by the catch block and trigger a retry/final message
+                        throw new Error(errorMessage);
+                    }
+
+                    const result = await response.json();
+                    const candidate = result.candidates?.[0];
+
+                    if (candidate && candidate.content?.parts?.[0]?.text) {
+                        resultText = candidate.content.parts[0].text;
+                        success = true;
+                    } else {
+                        throw new Error("API response was valid but contained no text result.");
+                    }
+
+                } catch (error) {
+                    console.error(`Attempt ${attempt + 1} failed:`, error);
+                    attempt++;
+                    if (attempt < maxRetries) {
+                        // FASTER BACKOFF LOGIC (reduced wait times for a snappier feel)
+                        // Wait: 1st retry (500ms), 2nd retry (~750ms)
+                        const delay = Math.pow(1.5, attempt) * 500;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                    } else {
+                        // FINAL USER-FRIENDLY ERROR MESSAGE (use the last caught error if possible)
+                        const lastError = error.message || `Conversion failed after ${maxRetries} attempts. Please check your network connection or try a different image.`;
+                        resultText = lastError;
+                    }
+                }
+            }
+
+            // Unset loading state
+            convertButton.disabled = false;
+            buttonText.classList.remove('hidden');
+            spinner.classList.add('hidden');
+
+            // Update output
+            outputTextarea.value = resultText.trim();
+            if (success) {
+                copyButton.disabled = outputTextarea.value.length === 0;
+                alertUser("Text extraction complete!", "info");
+            } else {
+                alertUser(resultText, "error");
+            }
+        }
+
+        /**
+         * Copies the extracted text to the clipboard.
+         */
+        function copyToClipboard() {
+            const outputTextarea = document.getElementById('output-text');
+            const copyButton = document.getElementById('copy-button');
+
+            if (outputTextarea.value) {
+                // Use the older execCommand for better iframe compatibility
+                outputTextarea.select();
+                document.execCommand('copy');
+                
+                // Provide visual feedback
+                const originalText = copyButton.textContent;
+                copyButton.textContent = "Copied!";
+                copyButton.disabled = true;
+                setTimeout(() => {
+                    copyButton.textContent = originalText;
+                    copyButton.disabled = false;
+                }, 2000);
+            }
+        }
+
+        window.onload = function() {
+            document.getElementById('convert-button').disabled = true;
+        }
+
+    </script>
+</body>
+</html>
